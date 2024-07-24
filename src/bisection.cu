@@ -17,7 +17,9 @@ void BisectionGetCollByteCount(size_t *sendcount, size_t *recvcount, size_t *par
 
 int getPeer(int rank, int n_ranks){
     if (n_ranks % 4 == 0)
-        return ((n_ranks / 2 + rank) % n_ranks) + (rank % 2 ? -1 : 1);
+        // In calyce, GPU 0 and 1 are never on the same rail as 2 and 3
+        // Therefore force 0 to pair with 2 and 1 to pair with 3
+        return ((n_ranks / 2 + rank) % n_ranks) + ((rank % 4) / 2 ? -2 : 2);
     // If there is an odd number of ranks, the last rank is ignored and paired with itself
     else if (n_ranks % 2 == 1 && rank == n_ranks-1)
         return rank;
