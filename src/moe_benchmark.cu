@@ -69,7 +69,7 @@ void GetCollByteCount(size_t *sendcount, size_t *recvcount, size_t *paramcount, 
 testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_t type, ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream) {
     /* The env var EXPERTS_REDUCTIONS_OP controls the collective simulating experts reductions
      * should be 0 for Reduce Scatter and 1 for All Gather
-     * The env var PARALLEL_OP controls the additional coll, 0=experts parallelism, 1=pipeline parallelism
+     * The env var PARALLEL_OP controls the additional coll, 0=nothing, 1=experts parallelism, 2=pipeline parallelism
      */
     char *env;
     int rank, size, experts_op, parallel_op;
@@ -112,13 +112,15 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     // Run another collective in parallel
     switch (parallel_op){
         case 0:
-            experts_parallelism(stream, comm, rank, size, sendbuff, recvbuff);
             break;
         case 1:
+            experts_parallelism(stream, comm, rank, size, sendbuff, recvbuff);
+            break;
+        case 2:
             pipeline_parallelism(stream, comm, rank, size, sendbuff, recvbuff);
             break;
         default:
-            printf("Invalid parallel op value, should be 0 for experts parallelism and 1 for pipeline parallelism");
+            printf("Invalid parallel op value, should be 0 for nothing, 1 for experts parallelism or 2 for pipeline parallelism");
             return testNcclError;
     }
     
