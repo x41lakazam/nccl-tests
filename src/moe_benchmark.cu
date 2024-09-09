@@ -84,9 +84,6 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     env = getenv("PARALLEL_OP");
     parallel_op = env ? atoi(env) : 0;
 
-    printf("experts op: %d\n", experts_op);
-    printf("Parallel op: %d\n", parallel_op)
-
     if (size < 32){
         printf("This test is meant to be ran with at least 32 nodes.");
         return testNcclError;
