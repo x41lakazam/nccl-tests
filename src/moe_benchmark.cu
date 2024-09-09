@@ -103,17 +103,17 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     // Run desired scenario
     NCCLCHECK(ncclGroupStart());
     // Run experts RS/AG
-    //switch (experts_op){
-    //    case 0:
-    //        NCCLCHECK(ncclReduceScatter((char *)sendbuff, (char *) recvbuff, size, ncclFloat, ncclSum, expertsComm, stream));
-    //        break;
-    //    case 1:
-    //        NCCLCHECK(ncclAllGather((char *)sendbuff, (char *) recvbuff, size/num_ranks, ncclFloat, expertsComm, stream));
-    //        break;
-    //    default:
-    //        printf("Invalid experts_op value, should be 0 for RS or 1 for AG, but received %d\n", experts_op);
-    //        return testNcclError;
-    //}
+    switch (experts_op){
+        case 0:
+            NCCLCHECK(ncclReduceScatter((char *)sendbuff, (char *) recvbuff, size, ncclFloat, ncclSum, expertsComm, stream));
+            break;
+        case 1:
+            NCCLCHECK(ncclAllGather((char *)sendbuff, (char *) recvbuff, size/num_ranks, ncclFloat, expertsComm, stream));
+            break;
+        default:
+            printf("Invalid experts_op value, should be 0 for RS or 1 for AG, but received %d\n", experts_op);
+            return testNcclError;
+    }
 
     // Run another collective in parallel
     switch (parallel_op){
