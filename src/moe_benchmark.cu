@@ -28,7 +28,6 @@ int experts_parallelism(cudaStream_t stream, ncclComm_t comm, int rank, int size
     return 0;
 }
 
-
 testResult_t InitData(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t op, int root, int rep, int in_place) {
   size_t sendcount = args->sendBytes / wordSize(type);
   size_t recvcount = args->expectedBytes / wordSize(type);
@@ -94,8 +93,6 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     do {
         NCCLCHECK(ncclCommGetAsyncError(comm, &state));
     } while(state == ncclInProgress);
-
-
 
     // Run desired scenario
     NCCLCHECK(ncclGroupStart());
