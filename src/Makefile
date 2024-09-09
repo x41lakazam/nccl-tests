@@ -41,7 +41,6 @@ LDFLAGS    := -L${CUDA_LIB} -lcudart -lrt
 NVLDFLAGS  := -L${CUDA_LIB} -l${CUDARTLIB} -lrt
 
 ifeq ($(DEBUG), 0)
-@printf "Debug mode activated." 
 NVCUFLAGS += -O3 -g
 CXXFLAGS  += -O3 -g
 else
