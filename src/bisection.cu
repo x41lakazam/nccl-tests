@@ -49,7 +49,7 @@ void BisectionGetBw(size_t count, int typesize, double sec, double* algBw, doubl
   *busBw = *algBw = (double)(count * typesize) / 1.0E9 / sec;
 }
 
-testResult_t BisectionRunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_t type, ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream) {
+testResult_t BisectionRunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_t type, ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream, cudaStream_t stream2) {
   int n_ranks, comm_rank, peer;
 
   NCCLCHECK(ncclCommUserRank(comm, &comm_rank));

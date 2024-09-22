@@ -379,9 +379,9 @@ testResult_t startColl(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t
     #endif
 
     TESTCHECK(args->collTest->runColl(
-          (void*)(in_place ? recvBuff + args->sendInplaceOffset*rank : sendBuff),
-          (void*)(in_place ? recvBuff + args->recvInplaceOffset*rank : recvBuff),
-        count, type, op, root, args->comms[i], args->streams[i]));
+        (void*)(in_place ? recvBuff + args->sendInplaceOffset*rank : sendBuff),
+        (void*)(in_place ? recvBuff + args->recvInplaceOffset*rank : recvBuff),
+        count, type, op, root, args->comms[i], args->streams[i], args->streams2[i]));
 
     #if NCCL_VERSION_CODE >= NCCL_VERSION(2,11,0)
     if(opIndex >= ncclNumOps) {
@@ -582,7 +582,7 @@ void setupArgs(size_t size, ncclDataType_t type, struct threadArgs* args) {
 
 testResult_t TimeTest(struct threadArgs* args, ncclDataType_t type, const char* typeName, ncclRedOp_t op, const char* opName, int root) {
   // Sync to avoid first-call timeout
-  Barrier(args);
+  //Barrier(args);
 
   // Warm-up for large size
   setupArgs(args->maxbytes, type, args);
@@ -975,6 +975,7 @@ testResult_t run() {
 #endif
   int gpus[nGpus*nThreads];
   cudaStream_t streams[nGpus*nThreads];
+  cudaStream_t streams2[nGpus*nThreads];
   void* sendbuffs[nGpus*nThreads];
   void* recvbuffs[nGpus*nThreads];
   void* expected[nGpus*nThreads];
@@ -988,10 +989,14 @@ testResult_t run() {
     gpus[i] = (gpu0 != -1 ? gpu0 : localRank*nThreads*nGpus) + i;
     CUDACHECK(cudaSetDevice(gpus[i]));
     TESTCHECK(AllocateBuffs(sendbuffs+i, sendBytes, recvbuffs+i, recvBytes, expected+i, (size_t)maxBytes));
-    if (streamnull)
+    if (streamnull){
       streams[i] = NULL;
-    else
+      streams2[i] = NULL;
+    }
+    else{
       CUDACHECK(cudaStreamCreateWithFlags(streams+i, cudaStreamNonBlocking));
+      CUDACHECK(cudaStreamCreateWithFlags(streams2+i, cudaStreamNonBlocking));
+    }
   }
 
   //if parallel init is not selected, use main thread to initialize NCCL
@@ -1064,6 +1069,7 @@ testResult_t run() {
     threads[t].args.ncclId = ncclId;
     threads[t].args.comms=comms+t*nGpus;
     threads[t].args.streams=streams+t*nGpus;
+    threads[t].args.streams2=streams2+t*nGpus;
 
     threads[t].args.errors=errors+t;
     threads[t].args.bw=bw+t;

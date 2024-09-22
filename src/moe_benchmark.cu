@@ -9,8 +9,11 @@ const int num_ranks = num_nodes * ppn;
 int pipeline_parallelism(cudaStream_t stream, ncclComm_t comm, int rank, int size, void *send_buf, void *recv_buf) {
     int peer = rank % 32 < 16 ? rank + 16 : rank - 16;
 
+    ncclGroupStart();
     NCCLCHECK(ncclSend((char *)send_buf, size, ncclFloat, peer, comm, stream));
     NCCLCHECK(ncclRecv((char *)recv_buf, size, ncclFloat, peer, comm, stream));
+    ncclGroupEnd();
+
     return 0;
 }
 
@@ -20,11 +23,13 @@ int experts_parallelism(cudaStream_t stream, ncclComm_t comm, int rank, int size
     int commFirstRank = 16*(rank / 16);
     int peer;
 
+    ncclGroupStart();
     for (int off=0; off < 16; off++) {
         peer = commFirstRank + off;
         NCCLCHECK(ncclSend(send_buf, count, ncclFloat, peer, comm, stream));
         NCCLCHECK(ncclRecv(recv_buf, count, ncclFloat, peer, comm, stream));
     }
+    ncclGroupEnd();
     return 0;
 }
 
@@ -66,7 +71,7 @@ void GetCollByteCount(size_t *sendcount, size_t *recvcount, size_t *paramcount, 
     *paramcount = count/nranks;
 }
 
-testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_t type, ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream) {
+testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_t type, ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream, cudaStream_t stream2) {
     /* The env var EXPERTS_REDUCTIONS_OP controls the collective simulating experts reductions
      * should be 0 for Reduce Scatter and 1 for All Gather
      * The env var PARALLEL_OP controls the additional coll, 0=nothing, 1=experts parallelism, 2=pipeline parallelism
@@ -95,7 +100,6 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     } while(state == ncclInProgress);
 
     // Run desired scenario
-    NCCLCHECK(ncclGroupStart());
     // Run experts RS/AG
     switch (experts_op){
         case 0:
@@ -114,17 +118,16 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
         case 0:
             break;
         case 1:
-            experts_parallelism(stream, comm, rank, size, sendbuff, recvbuff);
+            experts_parallelism(stream2, comm, rank, size, sendbuff, recvbuff);
             break;
         case 2:
-            pipeline_parallelism(stream, comm, rank, size, sendbuff, recvbuff);
+            pipeline_parallelism(stream2, comm, rank, size, sendbuff, recvbuff);
             break;
         default:
             printf("Invalid parallel op value, should be 0 for nothing, 1 for experts parallelism or 2 for pipeline parallelism");
             return testNcclError;
     }
     
-    NCCLCHECK(ncclGroupEnd());
 
     ncclCommDestroy(expertsComm);
     return testSuccess;
@@ -136,7 +139,7 @@ struct testColl moeBenchmarkTest = {
   GetCollByteCount,
   InitData,
   GetBw,
-  RunColl
+  RunColl,
 };
 
 void GetBuffSize(size_t *sendcount, size_t *recvcount, size_t count, int nranks) {

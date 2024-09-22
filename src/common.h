@@ -9,6 +9,7 @@
 #include "nccl.h"
 #include <stdio.h>
 #include <cstdint>
+#include <cstring>
 #include <algorithm>
 #ifdef MPI_SUPPORT
 #include "mpi.h"
@@ -92,7 +93,7 @@ struct testColl {
       ncclRedOp_t op, int root, int rep, int in_place);
   void (*getBw)(size_t count, int typesize, double sec, double* algBw, double* busBw, int nranks);
   testResult_t (*runColl)(void* sendbuff, void* recvbuff, size_t count, ncclDataType_t type,
-      ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream);
+      ncclRedOp_t op, int root, ncclComm_t comm, cudaStream_t stream, cudaStream_t stream2);
 };
 extern struct testColl allReduceTest;
 extern struct testColl allGatherTest;
@@ -132,6 +133,7 @@ struct threadArgs {
   ncclUniqueId ncclId;
   ncclComm_t* comms;
   cudaStream_t* streams;
+  cudaStream_t* streams2;   // Used for parallelism inside a single test
 
   void** expected;
   size_t expectedBytes;
