@@ -403,6 +403,7 @@ testResult_t completeColl(struct threadArgs* args) {
   if (blocking_coll) return testSuccess;
 
   TESTCHECK(testStreamSynchronize(args->nGpus, args->streams, args->comms));
+  TESTCHECK(testStreamSynchronize(args->nGpus, args->streams2, args->comms));
   return testSuccess;
 }
 
