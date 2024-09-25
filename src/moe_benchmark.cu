@@ -151,9 +151,6 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     env = getenv("PARALLEL_OP_COUNT");
     parallel_op_count = env ? (size_t) parsesize(env) : count;
 
-    PRINT("EXPERTS REDUCTION COUNT: %d\zu", experts_reduction_count);
-    PRINT("PARALLEL OP COUNT: %d\zu", experts_reduction_count);
-
     if (size < 32){
     // if (size != num_ranks){
         printf("This test is meant to be ran with at least 32 ranks.");
@@ -168,11 +165,9 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
 
     switch (experts_op){
         case 0:
-            PRINT("Experts reduction: ReduceScatter\n");
             NCCLCHECK(ncclReduceScatter((char *)sendbuff, (char *) recvbuff, experts_reduction_count, ncclChar, ncclSum, expertsComm, stream));
             break;
         case 1:
-            PRINT("Experts reduction: AllGather\n");
             NCCLCHECK(ncclAllGather((char *)sendbuff, (char *) recvbuff, experts_reduction_count, ncclChar, expertsComm, stream));
             break;
         default:
@@ -184,11 +179,9 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
         case 0:
             break;
         case 1:
-            PRINT("Parallel operation: Experts parallelism\n");
             experts_parallelism(stream2, comm, rank, parallel_op_count, sendbuff, recvbuff);
             break;
         case 2:
-            PRINT("Parallel operation: Pipeline parallelism\n");
             pipeline_parallelism(stream2, comm, rank, parallel_op_count, sendbuff, recvbuff);
             break;
         default:
@@ -220,6 +213,8 @@ testResult_t RunTest(struct threadArgs* args, int root, ncclDataType_t type, con
   ncclDataType_t *run_types;
   const char **run_typenames;
   int type_count;
+
+  PRINT("EXPERTS_REDUCTION_COUNT=%s, PARALLEL_OP_COUNT=%s\n", getenv("EXPERTS_REDUCTION_COUNT"), getenv("PARALLEL_OP_COUNT"));
 
   if ((int)type != -1) {
     type_count = 1;
