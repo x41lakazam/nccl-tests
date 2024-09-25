@@ -151,6 +151,9 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
     env = getenv("PARALLEL_OP_COUNT");
     parallel_op_count = env ? (size_t) parsesize(env) : count;
 
+    PRINT("EXPERTS REDUCTION COUNT: %d\zu", experts_reduction_count);
+    PRINT("PARALLEL OP COUNT: %d\zu", experts_reduction_count);
+
     if (size < 32){
     // if (size != num_ranks){
         printf("This test is meant to be ran with at least 32 ranks.");
@@ -163,28 +166,29 @@ testResult_t RunColl(void* sendbuff, void* recvbuff, size_t count, ncclDataType_
         NCCLCHECK(ncclCommGetAsyncError(comm, &state));
     } while(state == ncclInProgress);
 
-    // Run desired scenario
-    // Run experts RS/AG
     switch (experts_op){
         case 0:
-            NCCLCHECK(ncclReduceScatter((char *)sendbuff, (char *) recvbuff, experts_reduction_count/size, ncclChar, ncclSum, expertsComm, stream));
+            PRINT("Experts reduction: ReduceScatter\n");
+            NCCLCHECK(ncclReduceScatter((char *)sendbuff, (char *) recvbuff, experts_reduction_count, ncclChar, ncclSum, expertsComm, stream));
             break;
         case 1:
-            NCCLCHECK(ncclAllGather((char *)sendbuff, (char *) recvbuff, experts_reduction_count/size, ncclChar, expertsComm, stream));
+            PRINT("Experts reduction: AllGather\n");
+            NCCLCHECK(ncclAllGather((char *)sendbuff, (char *) recvbuff, experts_reduction_count, ncclChar, expertsComm, stream));
             break;
         default:
             printf("Invalid experts_op value, should be 0 for RS or 1 for AG, but received %d\n", experts_op);
             return testNcclError;
     }
 
-    // Run another collective in parallel
     switch (parallel_op){
         case 0:
             break;
         case 1:
+            PRINT("Parallel operation: Experts parallelism\n");
             experts_parallelism(stream2, comm, rank, parallel_op_count, sendbuff, recvbuff);
             break;
         case 2:
+            PRINT("Parallel operation: Pipeline parallelism\n");
             pipeline_parallelism(stream2, comm, rank, parallel_op_count, sendbuff, recvbuff);
             break;
         default:
