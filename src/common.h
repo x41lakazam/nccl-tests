@@ -134,6 +134,10 @@ struct threadArgs {
   ncclComm_t* comms;
   cudaStream_t* streams;
   cudaStream_t* streams2;   // Used for parallelism inside a single test
+  cudaEvent_t* streamsBegins;
+  cudaEvent_t* streamsEnds;
+  cudaEvent_t* streamsBegins2;
+  cudaEvent_t* streamsEnds2;
 
   void** expected;
   size_t expectedBytes;

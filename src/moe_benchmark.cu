@@ -214,6 +214,7 @@ testResult_t RunTest(struct threadArgs* args, int root, ncclDataType_t type, con
   const char **run_typenames;
   int type_count;
 
+  PRINT("EXPERTS_REDUCTIONS_OP=%s PARALLEL_OP=%s\n", getenv("EXPERTS_REDUCTIONS_OP"), getenv("PARALLEL_OP"));
   PRINT("EXPERTS_REDUCTION_COUNT=%s, PARALLEL_OP_COUNT=%s\n", getenv("EXPERTS_REDUCTION_COUNT"), getenv("PARALLEL_OP_COUNT"));
 
   if ((int)type != -1) {

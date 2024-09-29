@@ -408,6 +408,13 @@ testResult_t completeColl(struct threadArgs* args) {
 }
 
 testResult_t BenchTime(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t op, int root, int in_place) {
+//   if (is_main_thread){
+//     int wait = 1;
+//     printf("Waiting, pid=%d\n", getpid());
+//     while (wait){
+//         sleep(1);
+//     }
+//   } 
   size_t count = args->nbytes / wordSize(type);
   if (datacheck) {
     // Initialize sendbuffs, recvbuffs and expected
@@ -422,7 +429,9 @@ testResult_t BenchTime(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t
 
 #if CUDART_VERSION >= 11030
   cudaGraph_t graphs[args->nGpus];
+  cudaGraph_t graphs2[args->nGpus];
   cudaGraphExec_t graphExec[args->nGpus];
+  cudaGraphExec_t graphExec2[args->nGpus];
   if (cudaGraphLaunches >= 1) {
     // Begin cuda graph capture
     for (int i=0; i<args->nGpus; i++) {
@@ -431,48 +440,82 @@ testResult_t BenchTime(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t
       // - P2P pre-connect: when there is no warm-up, P2P pre-connect is done during graph capture.
       //   Since pre-connect calls cudaMalloc, we cannot use global capture mode
       CUDACHECK(cudaStreamBeginCapture(args->streams[i], cudaStreamCaptureModeThreadLocal));
+      CUDACHECK(cudaStreamBeginCapture(args->streams2[i], cudaStreamCaptureModeThreadLocal));
     }
   }
 #endif
 
   // Performance Benchmark
   timer tim;
+  float deltaSecStream1=0, deltaSecStream2=0, iterDeltaSecStream1, iterDeltaSecStream2, d1, d2;
+
   for (int iter = 0; iter < iters; iter++) {
     if (agg_iters>1) NCCLCHECK(ncclGroupStart());
-    for (int aiter = 0; aiter < agg_iters; aiter++) {
-      TESTCHECK(startColl(args, type, op, root, in_place, iter*agg_iters+aiter));
+      for (int aiter = 0; aiter < agg_iters; aiter++) {
+        for (int i=0; i<args->nGpus; i++) {
+            CUDACHECK(cudaEventRecord(args->streamsBegins[i], args->streams[i]));
+            CUDACHECK(cudaEventRecord(args->streamsBegins2[i], args->streams2[i]));
+        }
+
+        TESTCHECK(startColl(args, type, op, root, in_place, iter*agg_iters+aiter));
+
+        for (int i=0; i<args->nGpus; i++) {
+            CUDACHECK(cudaEventRecord(args->streamsEnds[i], args->streams[i]));
+            CUDACHECK(cudaEventRecord(args->streamsEnds2[i], args->streams2[i]));
+        }
+
+        iterDeltaSecStream1 = 0;
+        iterDeltaSecStream2 = 0;
+        for (int i=0; i<args->nGpus; i++) {
+          CUDACHECK(cudaEventElapsedTime(&d1, args->streamsBegins[i], args->streamsEnds[i]));
+          CUDACHECK(cudaEventElapsedTime(&d2, args->streamsBegins2[i], args->streamsEnds2[i]));
+          iterDeltaSecStream1 = max(iterDeltaSecStream1, d1);
+          iterDeltaSecStream2 = max(iterDeltaSecStream2, d2);
+        }
+        deltaSecStream1 += iterDeltaSecStream1;
+        deltaSecStream2 += iterDeltaSecStream2;
     }
     if (agg_iters>1) NCCLCHECK(ncclGroupEnd());
   }
+  deltaSecStream1 = deltaSecStream1/(iters*agg_iters);
+  deltaSecStream2 = deltaSecStream2/(iters*agg_iters);
+
 
 #if CUDART_VERSION >= 11030
   if (cudaGraphLaunches >= 1) {
     // End cuda graph capture
     for (int i=0; i<args->nGpus; i++) {
       CUDACHECK(cudaStreamEndCapture(args->streams[i], graphs+i));
+      CUDACHECK(cudaStreamEndCapture(args->streams2[i], graphs2+i));
     }
     // Instantiate cuda graph
     for (int i=0; i<args->nGpus; i++) {
       CUDACHECK(cudaGraphInstantiate(graphExec+i, graphs[i], NULL, NULL, 0));
+      CUDACHECK(cudaGraphInstantiate(graphExec2+i, graphs2[i], NULL, NULL, 0));
     }
     // Resync CPU, restart timing, launch cuda graph
     Barrier(args);
     tim.reset();
-    for (int l=0; l<cudaGraphLaunches; l++) {
-      for (int i=0; i<args->nGpus; i++) {
+    for (int i=0; i<args->nGpus; i++) {
         CUDACHECK(cudaGraphLaunch(graphExec[i], args->streams[i]));
-      }
+        CUDACHECK(cudaGraphLaunch(graphExec2[i], args->streams2[i]));
     }
   }
 #endif
 
   double cputimeSec = tim.elapsed()/(iters*agg_iters);
-  TESTCHECK(completeColl(args));
+  testResult_t r;
+  TESTCHECK(completeColl(args)); 
+
 
   double deltaSec = tim.elapsed();
   deltaSec = deltaSec/(iters*agg_iters);
-  if (cudaGraphLaunches >= 1) deltaSec = deltaSec/cudaGraphLaunches;
+
+
   Allreduce(args, &deltaSec, average);
+  if (getenv("NCCL_TESTS_PRINT_STREAMS_TIMES")){
+    printf("[NCCL_TESTS_PRINT_STREAMS_TIMES]{\"Rank\": %d, \"stream1_time\": %.6f, \"stream2_time\": %.6f}\n",args->proc, deltaSecStream1, deltaSecStream2);
+  }
 
 #if CUDART_VERSION >= 11030
   if (cudaGraphLaunches >= 1) {
@@ -547,19 +590,21 @@ testResult_t BenchTime(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t
       if (wrongElts) break;
   }
 
-  double timeUsec = (report_cputime ? cputimeSec : deltaSec)*1.0E6;
-  char timeStr[100];
-  if (timeUsec >= 10000.0) {
-    sprintf(timeStr, "%7.0f", timeUsec);
-  } else if (timeUsec >= 100.0) {
-    sprintf(timeStr, "%7.1f", timeUsec);
-  } else {
-    sprintf(timeStr, "%7.2f", timeUsec);
-  }
-  if (args->reportErrors) {
-    PRINT("  %7s  %6.2f  %6.2f  %5g", timeStr, algBw, busBw, (double)wrongElts);
-  } else {
-    PRINT("  %7s  %6.2f  %6.2f  %5s", timeStr, algBw, busBw, "N/A");
+  if (!getenv("NCCL_TESTS_PRINT_STREAMS_TIMES")){
+    double timeUsec = (report_cputime ? cputimeSec : deltaSec)*1.0E6;
+    char timeStr[100];
+    if (timeUsec >= 10000.0) {
+        sprintf(timeStr, "%7.0f", timeUsec);
+    } else if (timeUsec >= 100.0) {
+        sprintf(timeStr, "%7.1f", timeUsec);
+    } else {
+        sprintf(timeStr, "%7.2f", timeUsec);
+    }
+    if (args->reportErrors) {
+        PRINT("  %7s  %6.2f  %6.2f  %5g", timeStr, algBw, busBw, (double)wrongElts);
+    } else {
+        PRINT("  %7s  %6.2f  %6.2f  %5s", timeStr, algBw, busBw, "N/A");
+    }
   }
 
   args->bw[0] += busBw;
@@ -977,6 +1022,10 @@ testResult_t run() {
   int gpus[nGpus*nThreads];
   cudaStream_t streams[nGpus*nThreads];
   cudaStream_t streams2[nGpus*nThreads];
+  cudaEvent_t streamsBegins[nGpus*nThreads];
+  cudaEvent_t streamsBegins2[nGpus*nThreads];
+  cudaEvent_t streamsEnds[nGpus*nThreads];
+  cudaEvent_t streamsEnds2[nGpus*nThreads];
   void* sendbuffs[nGpus*nThreads];
   void* recvbuffs[nGpus*nThreads];
   void* expected[nGpus*nThreads];
@@ -997,6 +1046,10 @@ testResult_t run() {
     else{
       CUDACHECK(cudaStreamCreateWithFlags(streams+i, cudaStreamNonBlocking));
       CUDACHECK(cudaStreamCreateWithFlags(streams2+i, cudaStreamNonBlocking));
+      CUDACHECK(cudaEventCreate(streamsBegins+i));
+      CUDACHECK(cudaEventCreate(streamsBegins2+i));
+      CUDACHECK(cudaEventCreate(streamsEnds+i));
+      CUDACHECK(cudaEventCreate(streamsEnds2+i));
     }
   }
 
@@ -1071,6 +1124,10 @@ testResult_t run() {
     threads[t].args.comms=comms+t*nGpus;
     threads[t].args.streams=streams+t*nGpus;
     threads[t].args.streams2=streams2+t*nGpus;
+    threads[t].args.streamsBegins=streamsBegins+t*nGpus;
+    threads[t].args.streamsBegins2=streamsBegins2+t*nGpus;
+    threads[t].args.streamsEnds=streamsEnds+t*nGpus;
+    threads[t].args.streamsEnds2=streamsEnds2+t*nGpus;
 
     threads[t].args.errors=errors+t;
     threads[t].args.bw=bw+t;
