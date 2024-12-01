@@ -16,13 +16,15 @@ void BisectionGetCollByteCount(size_t *sendcount, size_t *recvcount, size_t *par
 }
 
 int getPeer(int rank, int n_ranks){
-    if (n_ranks % 4 == 0)
-        return ((n_ranks / 2 + rank) % n_ranks) + (rank % 2 ? -1 : 1);
-    // If there is an odd number of ranks, the last rank is ignored and paired with itself
-    else if (n_ranks % 2 == 1 && rank == n_ranks-1)
-        return rank;
-    else
-        return (rank + n_ranks/2) % (n_ranks - n_ranks % 2);
+    int peers[] = {26, 16, 9, 21, 25, 28, 20, 18, 29, 2, 17, 30, 19, 22, 24, 31, 1, 10, 7, 12, 6, 3, 13, 27, 14, 4, 0, 23, 5, 8, 11, 15};
+    return peers[rank];
+    // if (n_ranks % 4 == 0)
+    //     return ((n_ranks / 2 + rank) % n_ranks) + (rank % 2 ? -1 : 1);
+    // // If there is an odd number of ranks, the last rank is ignored and paired with itself
+    // else if (n_ranks % 2 == 1 && rank == n_ranks-1)
+    //     return rank;
+    // else
+    //     return (rank + n_ranks/2) % (n_ranks - n_ranks % 2);
 }
 
 testResult_t BisectionInitData(struct threadArgs* args, ncclDataType_t type, ncclRedOp_t op, int root, int rep, int in_place) {
