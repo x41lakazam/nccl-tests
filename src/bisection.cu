@@ -16,7 +16,7 @@ void BisectionGetCollByteCount(size_t *sendcount, size_t *recvcount, size_t *par
 }
 
 int getPeer(int rank, int n_ranks){
-    int peers[] = {26, 16, 9, 21, 25, 28, 20, 18, 29, 2, 17, 30, 19, 22, 24, 31, 1, 10, 7, 12, 6, 3, 13, 27, 14, 4, 0, 23, 5, 8, 11, 15};
+    int peers[] = {117, 50, 92, 55, 96, 36, 103, 66, 118, 63, 72, 78, 62, 35, 115, 88, 95, 97, 93, 121, 71, 34, 105, 48, 57, 68, 112, 53, 52, 43, 114, 79, 83, 67, 21, 13, 5, 126, 89, 110, 111, 98, 113, 29, 122, 64, 108, 127, 23, 81, 1, 102, 28, 27, 119, 3, 82, 24, 80, 70, 85, 69, 12, 9, 45, 123, 7, 33, 25, 61, 59, 20, 10, 106, 101, 100, 99, 116, 11, 31, 58, 49, 56, 32, 107, 60, 125, 124, 15, 38, 120, 109, 2, 18, 104, 16, 4, 17, 41, 76, 75, 74, 51, 6, 94, 22, 73, 84, 46, 91, 39, 40, 26, 42, 30, 14, 77, 0, 8, 54, 90, 19, 44, 65, 87, 86, 37, 47};
     return peers[rank];
     // if (n_ranks % 4 == 0)
     //     return ((n_ranks / 2 + rank) % n_ranks) + (rank % 2 ? -1 : 1);
@@ -109,7 +109,7 @@ testResult_t BisectionRunTest(struct threadArgs* args, int root, ncclDataType_t 
 
   for (int i=0; i<type_count; i++) {
     for (int j=0; j<op_count; j++) {
-      TESTCHECK(TimeTest(args, run_types[i], run_typenames[i], run_ops[j], run_opnames[j], -1));
+      TESTCHECK(TimeTest(args, run_types[i], run_typenames[i], run_ops[j], run_opnames[j], root));
     }
   }
   return testSuccess;
